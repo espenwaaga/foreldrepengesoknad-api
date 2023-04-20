@@ -57,8 +57,8 @@ jobs:
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, Go, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+#     - name: Autobuild
+#       uses: github/codeql-action/autobuild@v2
 
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
@@ -69,6 +69,34 @@ jobs:
     # - run: |
     #     echo "Run, Build Application using script"
     #     ./location_of_script_within_repo/buildscript.sh
+    
+    - name: Create maven .m2 settings for GITHUB
+      uses: whelk-io/maven-settings-xml-action@v21
+      with:
+        repositories: '[{"id": "github", "name": "github", "url": "https://maven.pkg.github.com/navikt/foreldrepengesoknad-api",
+              "releases": { "enabled": "true" }, "snapshots": { "enabled": "false" }}]'
+        servers: '[{ "id": "github", "username": "${{ github.actor }}", "password": "${{ secrets.PAT}}" }]'
+        output_file: settings.xml
+
+    - name: Set up JDK-17 with cache
+      uses: actions/setup-java@v3
+      with:
+        java-version: 17
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Generate build version
+      id: generate-build-version
+      run: |
+        echo "build-version=$(date +%Y.%m.%d.%H%M%S)-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+    - name: Print build version
+      run: echo "Generated build-version is ${{ steps.generate-build-version.outputs.build-version }}"
+
+    - name: Build artifacts
+      run: |
+        echo "Building artifacts ${{ steps.generate-build-version.outputs.build-version }}"
+        mvn versions:set -DnewVersion="${{ steps.generate-build-version.outputs.build-version }}" -s settings.xml -q -e -B
+        mvn install -s settings.xml -q -e -B -DskipTests
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
